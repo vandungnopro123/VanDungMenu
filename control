@@ -1,9 +1,7 @@
-Package: com.vandung.menu
-Name: VanDungMenu
-Version: 1.0.0
-Architecture: iphoneos-arm
-Description: Floating utility menu UI demo
-Maintainer: VanDung
-Author: VanDung
-Section: Tweaks
-Depends: mobilesubstrate
+{
+    Filter = {
+        Bundles = (
+            "com.vdungzpr.ffvn.kernel"
+        );
+    };
+}

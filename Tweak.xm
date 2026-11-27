@@ -1,75 +1,117 @@
 #import <UIKit/UIKit.h>
+#import <Foundation/Foundation.h>
 
-@interface VDMenuController : NSObject
-@property(nonatomic,strong) UIButton *bubble;
-@property(nonatomic,strong) UIView *panel;
-@end
+static NSString * const kAPI = @"https://svkeyvdung.shopaccvt.site/api/verify.php";
+static NSString * const kAppID = @"vdungzproject";
+static NSString * const kSavedKey = @"VDUNGZKeyGate.SavedKey";
+static NSString * const kDeviceID = @"VDUNGZKeyGate.DeviceID";
+static BOOL gPromptVisible = NO;
+static BOOL gChecking = NO;
 
-@implementation VDMenuController
-- (void)install {
-    dispatch_async(dispatch_get_main_queue(), ^{
-        UIWindow *window = nil;
+static NSString *DeviceID(void) {
+    NSUserDefaults *d = [NSUserDefaults standardUserDefaults];
+    NSString *v = [d stringForKey:kDeviceID];
+    if (!v.length) {
+        v = NSUUID.UUID.UUIDString;
+        [d setObject:v forKey:kDeviceID];
+        [d synchronize];
+    }
+    return v;
+}
+
+static UIViewController *TopController(void) {
+    UIWindow *window = nil;
+    if (@available(iOS 13.0, *)) {
         for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
+            if (scene.activationState != UISceneActivationStateForegroundActive) continue;
             if (![scene isKindOfClass:UIWindowScene.class]) continue;
-            for (UIWindow *candidate in ((UIWindowScene *)scene).windows) {
-                if (candidate.isKeyWindow) { window = candidate; break; }
+            for (UIWindow *w in ((UIWindowScene *)scene).windows) {
+                if (w.isKeyWindow) { window = w; break; }
             }
             if (window) break;
         }
-        if (!window || self.bubble) return;
-
-        self.bubble = [UIButton buttonWithType:UIButtonTypeSystem];
-        self.bubble.frame = CGRectMake(18, 180, 54, 54);
-        self.bubble.layer.cornerRadius = 27;
-        self.bubble.backgroundColor = [UIColor colorWithRed:0.12 green:0.45 blue:0.95 alpha:0.95];
-        [self.bubble setTitle:@"VD" forState:UIControlStateNormal];
-        [self.bubble setTitleColor:UIColor.whiteColor forState:UIControlStateNormal];
-        self.bubble.titleLabel.font = [UIFont boldSystemFontOfSize:18];
-        [self.bubble addTarget:self action:@selector(togglePanel) forControlEvents:UIControlEventTouchUpInside];
-        [window addSubview:self.bubble];
-
-        UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(dragBubble:)];
-        [self.bubble addGestureRecognizer:pan];
-    });
-}
-- (void)togglePanel {
-    if (self.panel) { [self.panel removeFromSuperview]; self.panel = nil; return; }
-    UIWindow *window = self.bubble.window;
-    self.panel = [[UIView alloc] initWithFrame:CGRectMake(82, 180, 220, 190)];
-    self.panel.backgroundColor = [UIColor colorWithWhite:0.08 alpha:0.96];
-    self.panel.layer.cornerRadius = 14;
-    self.panel.layer.borderWidth = 1;
-    self.panel.layer.borderColor = [UIColor colorWithWhite:1 alpha:0.2].CGColor;
-
-    UILabel *heading = [[UILabel alloc] initWithFrame:CGRectMake(14, 12, 192, 28)];
-    heading.text = @"VAN DUNG MENU";
-    heading.textColor = UIColor.whiteColor;
-    heading.font = [UIFont boldSystemFontOfSize:16];
-    [self.panel addSubview:heading];
-
-    NSArray *items = @[@"Floating menu is active", @"UI demo only", @"Tap VD to close"];
-    for (NSInteger i = 0; i < items.count; i++) {
-        UILabel *label = [[UILabel alloc] initWithFrame:CGRectMake(14, 52 + i*38, 192, 28)];
-        label.text = items[i];
-        label.textColor = [UIColor colorWithWhite:0.9 alpha:1];
-        label.font = [UIFont systemFontOfSize:13];
-        [self.panel addSubview:label];
     }
-    [window addSubview:self.panel];
+    if (!window) window = UIApplication.sharedApplication.keyWindow;
+    UIViewController *vc = window.rootViewController;
+    while (vc.presentedViewController) vc = vc.presentedViewController;
+    return vc;
 }
-- (void)dragBubble:(UIPanGestureRecognizer *)gesture {
-    UIView *view = gesture.view;
-    CGPoint delta = [gesture translationInView:view.superview];
-    view.center = CGPointMake(view.center.x + delta.x, view.center.y + delta.y);
-    [gesture setTranslation:CGPointZero inView:view.superview];
-}
-@end
 
-static VDMenuController *vdController;
+static void ShowKeyPrompt(void);
+
+static void VerifyKey(NSString *key) {
+    if (gChecking) return;
+    gChecking = YES;
+    NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:kAPI]
+                                                       cachePolicy:NSURLRequestReloadIgnoringLocalCacheData
+                                                   timeoutInterval:20.0];
+    req.HTTPMethod = @"POST";
+    req.HTTPBody = [NSJSONSerialization dataWithJSONObject:@{
+        @"app_id": kAppID,
+        @"key": key ?: @"",
+        @"device_id": DeviceID()
+    } options:0 error:nil];
+    [req setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];
+
+    [[[NSURLSession sharedSession] dataTaskWithRequest:req completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+        NSDictionary *json = nil;
+        if (data) json = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+        BOOL ok = !error && [response isKindOfClass:NSHTTPURLResponse.class] && ((NSHTTPURLResponse *)response).statusCode == 200 && [json[@"ok"] boolValue];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            gChecking = NO;
+            if (ok) {
+                [[NSUserDefaults standardUserDefaults] setObject:key forKey:kSavedKey];
+                [[NSUserDefaults standardUserDefaults] synchronize];
+                gPromptVisible = NO;
+                return;
+            }
+            NSString *message = [json[@"message"] isKindOfClass:NSString.class] ? json[@"message"] : @"Không kết nối được máy chủ xác thực.";
+            UIViewController *vc = TopController();
+            if (vc) {
+                UIAlertController *a = [UIAlertController alertControllerWithTitle:@"Key không hợp lệ" message:message preferredStyle:UIAlertControllerStyleAlert];
+                [a addAction:[UIAlertAction actionWithTitle:@"Thử lại" style:UIAlertActionStyleDefault handler:^(UIAlertAction *x) { gPromptVisible = NO; ShowKeyPrompt(); }]];
+                [vc presentViewController:a animated:YES completion:nil];
+            } else {
+                gPromptVisible = NO;
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ ShowKeyPrompt(); });
+            }
+        });
+    }] resume];
+}
+
+static void ShowKeyPrompt(void) {
+    if (gPromptVisible || gChecking) return;
+    UIViewController *vc = TopController();
+    if (!vc || vc.isBeingPresented || vc.isBeingDismissed) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ ShowKeyPrompt(); });
+        return;
+    }
+    gPromptVisible = YES;
+    UIAlertController *a = [UIAlertController alertControllerWithTitle:@"VDUNGZ — Nhập key" message:@"Nhập key được cấp để xác thực ứng dụng." preferredStyle:UIAlertControllerStyleAlert];
+    [a addTextFieldWithConfigurationHandler:^(UITextField *f) {
+        f.placeholder = @"XXXX-XXXX-XXXX-XXXX";
+        f.autocapitalizationType = UITextAutocapitalizationTypeAllCharacters;
+        f.autocorrectionType = UITextAutocorrectionTypeNo;
+        f.clearButtonMode = UITextFieldViewModeWhileEditing;
+    }];
+    UIAlertAction *verify = [UIAlertAction actionWithTitle:@"Xác thực" style:UIAlertActionStyleDefault handler:^(UIAlertAction *x) {
+        NSString *key = [a.textFields.firstObject.text stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+        gPromptVisible = NO;
+        if (key.length) VerifyKey(key); else ShowKeyPrompt();
+    }];
+    verify.enabled = YES;
+    [a addAction:verify];
+    // No cancel action: the app remains behind the required key prompt.
+    [vc presentViewController:a animated:YES completion:nil];
+}
+
 %ctor {
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2 * NSEC_PER_SEC)),
-                   dispatch_get_main_queue(), ^{
-        vdController = [VDMenuController new];
-        [vdController install];
-    });
+    @autoreleasepool {
+        [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidBecomeActiveNotification object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *n) {
+            if (![[NSUserDefaults standardUserDefaults] stringForKey:kSavedKey]) ShowKeyPrompt();
+        }];
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            if (![[NSUserDefaults standardUserDefaults] stringForKey:kSavedKey]) ShowKeyPrompt();
+        });
+    }
 }
