@@ -6,18 +6,14 @@ on:
   push:
     paths:
       - 'VDUNGZKeyGate/**'
-      - 'Makefile'
-      - 'Tweak.xm'
-      - 'control'
-      - 'VDUNGZKeyGate.plist'
       - '.github/workflows/build-keygate.yml'
 
 jobs:
   build:
-    runs-on: macos-14
+    runs-on: macos-latest
 
     steps:
-      - name: Download source
+      - name: Checkout source
         uses: actions/checkout@v4
 
       - name: Install Theos
@@ -26,21 +22,22 @@ jobs:
           git clone https://github.com/theos/sdks.git "$HOME/theos/sdks"
           echo "THEOS=$HOME/theos" >> "$GITHUB_ENV"
 
-      - name: Build package
+      - name: Check project files
         run: |
-          if [ -f "VDUNGZKeyGate/Makefile" ]; then
-            cd VDUNGZKeyGate
-          elif [ -f "Makefile" ]; then
-            cd .
-          else
-            echo "ERROR: Khong tim thay Makefile"
+          ls -la
+          if [ ! -f "VDUNGZKeyGate/Makefile" ]; then
+            echo "ERROR: Khong tim thay VDUNGZKeyGate/Makefile"
             exit 1
           fi
+
+      - name: Build package
+        run: |
+          cd VDUNGZKeyGate
           make package FINALPACKAGE=1
 
-      - name: Upload DEB
+      - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: VDUNGZKeyGate
-          path: '**/*.deb'
+          name: VDUNGZKeyGate-DEB
+          path: VDUNGZKeyGate/packages/*.deb
           if-no-files-found: error
