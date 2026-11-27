@@ -16,26 +16,27 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v4
 
-      - name: Install Theos
+      - name: Install Theos and SDK
         run: |
           git clone --recursive https://github.com/theos/theos.git "$HOME/theos"
-          git clone https://github.com/theos/sdks.git "$HOME/theos/sdks"
+          git clone https://github.com/theos/sdks.git "$RUNNER_TEMP/theos-sdks"
+          mkdir -p "$HOME/theos/sdks"
+          cp -R "$RUNNER_TEMP/theos-sdks/." "$HOME/theos/sdks/"
           echo "THEOS=$HOME/theos" >> "$GITHUB_ENV"
 
-      - name: Check project files
+      - name: Check project
         run: |
-          ls -la
-          if [ ! -f "VDUNGZKeyGate/Makefile" ]; then
-            echo "ERROR: Khong tim thay VDUNGZKeyGate/Makefile"
-            exit 1
-          fi
+          test -f VDUNGZKeyGate/Makefile
+          test -f VDUNGZKeyGate/Tweak.xm
+          test -f VDUNGZKeyGate/control
+          test -f VDUNGZKeyGate/VDUNGZKeyGate.plist
 
       - name: Build package
         run: |
           cd VDUNGZKeyGate
           make package FINALPACKAGE=1
 
-      - name: Upload build artifact
+      - name: Upload DEB
         uses: actions/upload-artifact@v4
         with:
           name: VDUNGZKeyGate-DEB
