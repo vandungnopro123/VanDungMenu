@@ -1,0 +1,41 @@
+name: Build VDUNGZ KeyGate
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'Makefile'
+      - 'control'
+      - 'Tweak.xm'
+      - '.github/workflows/build-keygate.yml'
+
+jobs:
+  build:
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Theos
+        shell: bash
+        run: |
+          git clone --recursive https://github.com/theos/theos.git "$RUNNER_TEMP/theos"
+          echo "THEOS=$RUNNER_TEMP/theos" >> "$GITHUB_ENV"
+
+      - name: Build package
+        shell: bash
+        run: |
+          set -e
+          test -f Makefile
+          test -f control
+          test -f Tweak.xm
+          make package FINALPACKAGE=1
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: VDUNGZ-KeyGate-build
+          path: packages/*
+          if-no-files-found: error
+          retention-days: 14
