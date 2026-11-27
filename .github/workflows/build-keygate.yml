@@ -3,10 +3,6 @@ name: Build VDUNGZ KeyGate
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - 'VDUNGZKeyGate/**'
-      - '.github/workflows/build-keygate.yml'
 
 jobs:
   build:
@@ -24,21 +20,29 @@ jobs:
           cp -R "$RUNNER_TEMP/theos-sdks/." "$HOME/theos/sdks/"
           echo "THEOS=$HOME/theos" >> "$GITHUB_ENV"
 
-      - name: Check project
+      - name: Check files
         run: |
-          test -f VDUNGZKeyGate/Makefile
-          test -f VDUNGZKeyGate/Tweak.xm
-          test -f VDUNGZKeyGate/control
-          test -f VDUNGZKeyGate/VDUNGZKeyGate.plist
+          echo "=== ROOT ==="
+          ls -la
+          if [ -f Makefile ]; then
+            PROJECT="."
+          elif [ -f VDUNGZKeyGate/Makefile ]; then
+            PROJECT="VDUNGZKeyGate"
+          else
+            echo "ERROR: Khong tim thay Makefile"
+            exit 1
+          fi
+          echo "$PROJECT" > "$RUNNER_TEMP/project_dir"
 
       - name: Build package
         run: |
-          cd VDUNGZKeyGate
+          PROJECT=$(cat "$RUNNER_TEMP/project_dir")
+          cd "$PROJECT"
           make package FINALPACKAGE=1
 
       - name: Upload DEB
         uses: actions/upload-artifact@v4
         with:
           name: VDUNGZKeyGate-DEB
-          path: VDUNGZKeyGate/packages/*.deb
+          path: '**/*.deb'
           if-no-files-found: error
