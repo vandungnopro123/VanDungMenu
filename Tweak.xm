@@ -99,9 +99,7 @@ static void ShowKeyPrompt(void) {
         gPromptVisible = NO;
         if (key.length) VerifyKey(key); else ShowKeyPrompt();
     }];
-    verify.enabled = YES;
     [a addAction:verify];
-    // No cancel action: the app remains behind the required key prompt.
     [vc presentViewController:a animated:YES completion:nil];
 }
 

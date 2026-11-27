@@ -1,7 +1,9 @@
-{
-    Filter = {
-        Bundles = (
-            "com.vdungzpr.ffvn.kernel"
-        );
-    };
-}
+Package: com.vdungzpr.vdungzkeygate
+Name: VDUNGZ KeyGate
+Version: 0.1.0
+Architecture: iphoneos-arm
+Description: Key validation prompt for VDUNGZ Project.
+Maintainer: VDUNGZ
+Author: VDUNGZ
+Section: Tweaks
+Depends: firmware (>= 15.0)
