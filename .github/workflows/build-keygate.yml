@@ -14,25 +14,23 @@ jobs:
 
       - name: Install Theos and SDK
         run: |
+          brew install ldid
           git clone --recursive https://github.com/theos/theos.git "$HOME/theos"
           git clone https://github.com/theos/sdks.git "$RUNNER_TEMP/theos-sdks"
           mkdir -p "$HOME/theos/sdks"
           cp -R "$RUNNER_TEMP/theos-sdks/." "$HOME/theos/sdks/"
           echo "THEOS=$HOME/theos" >> "$GITHUB_ENV"
 
-      - name: Check files
+      - name: Find project
         run: |
-          echo "=== ROOT ==="
-          ls -la
           if [ -f Makefile ]; then
-            PROJECT="."
+            echo "." > "$RUNNER_TEMP/project_dir"
           elif [ -f VDUNGZKeyGate/Makefile ]; then
-            PROJECT="VDUNGZKeyGate"
+            echo "VDUNGZKeyGate" > "$RUNNER_TEMP/project_dir"
           else
-            echo "ERROR: Khong tim thay Makefile"
+            echo "ERROR: Makefile not found"
             exit 1
           fi
-          echo "$PROJECT" > "$RUNNER_TEMP/project_dir"
 
       - name: Build package
         run: |
@@ -40,9 +38,11 @@ jobs:
           cd "$PROJECT"
           make package FINALPACKAGE=1
 
-      - name: Upload DEB
+      - name: Upload DEB and dylib
         uses: actions/upload-artifact@v4
         with:
-          name: VDUNGZKeyGate-DEB
-          path: '**/*.deb'
+          name: VDUNGZKeyGate-Build
+          path: |
+            **/*.deb
+            **/*.dylib
           if-no-files-found: error
